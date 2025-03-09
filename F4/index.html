@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نمایش مدل سه‌بعدی</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <!-- اضافه کردن Three.js و GLTFLoader و OrbitControls از CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // تنظیم صحنه
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // نورپردازی
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // اضافه کردن OrbitControls برای زوم و چرخش
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 0.5; // نصف قبلی (0.5 به جای 1)
+        controls.maxDistance = 25; // نصف قبلی (25 به جای 50)
+        controls.maxPolarAngle = Math.PI / 2;
+
+        // بارگذاری مدل
+        const loader = new THREE.GLTFLoader();
+        loader.load(
+            'assets/shrek_head.glb',
+            function (gltf) {
+                console.log('مدل با موفقیت لود شد:', gltf);
+                const model = gltf.scene;
+                
+                // تنظیم مقیاس مدل
+                model.scale.set(1, 1, 1); // مقیاس رو ساده نگه می‌داریم
+
+                // تنظیم موقعیت مدل به وسط صحنه
+                model.position.set(0, 0, 0);
+                scene.add(model);
+
+                // لاگ برای دیباگ
+                console.log('موقعیت مدل:', model.position);
+                console.log('مقیاس مدل:', model.scale);
+            },
+            function (xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function (error) {
+                console.error('خطا در بارگذاری مدل:', error);
+            }
+        );
+
+        // تنظیم دستی دوربین
+        camera.position.set(0, 2, 10); // دوربین رو یه کم دورتر و بالاتر
+        camera.lookAt(0, 0, 0); // به مرکز صحنه نگاه کن
+
+        // انیمیشن
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // تغییر اندازه پنجره
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
