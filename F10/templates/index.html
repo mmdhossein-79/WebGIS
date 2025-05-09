@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <title>مبدل Tile و مختصات</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; direction: rtl; }
+        .form-group { margin-bottom: 20px; }
+        label { display: inline-block; width: 150px; }
+        input { padding: 5px; width: 200px; }
+        button { padding: 8px 16px; }
+        .result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>مبدل Tile و مختصات جغرافیایی</h1>
+    
+    <h2>تبدیل Tile به BBOX</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="tile_x">شماره ستون (X):</label>
+            <input type="number" id="tile_x" name="tile_x" required>
+        </div>
+        <div class="form-group">
+            <label for="tile_y">شماره سطر (Y):</label>
+            <input type="number" id="tile_y" name="tile_y" required>
+        </div>
+        <div class="form-group">
+            <label for="zoom">سطح زوم:</label>
+            <input type="number" id="zoom" name="zoom" min="0" max="20" required>
+        </div>
+        <button type="submit">محاسبه BBOX</button>
+    </form>
+    
+    {% if bbox_result %}
+    <div class="result">
+        {% if bbox_result.error %}
+        <p class="error">{{ bbox_result.error }}</p>
+        {% else %}
+        <p>حداقل طول جغرافیایی: {{ bbox_result.min_lon }}</p>
+        <p>حداقل عرض جغرافیایی: {{ bbox_result.min_lat }}</p>
+        <p>حداکثر طول جغرافیایی: {{ bbox_result.max_lon }}</p>
+        <p>حداکثر عرض جغرافیایی: {{ bbox_result.max_lat }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <h2>تبدیل مختصات به Tile</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="lon">طول جغرافیایی:</label>
+            <input type="number" step="any" id="lon" name="lon" required>
+        </div>
+        <div class="form-group">
+            <label for="lat">عرض جغرافیایی:</label>
+            <input type="number" step="any" id="lat" name="lat" required>
+        </div>
+        <div class="form-group">
+            <label for="zoom">سطح زوم:</label>
+            <input type="number" id="zoom" name="zoom" min="0" max="20" required>
+        </div>
+        <button type="submit">محاسبه Tile</button>
+    </form>
+    
+    {% if tile_result %}
+    <div class="result">
+        {% if tile_result.error %}
+        <p class="error">{{ tile_result.error }}</p>
+        {% else %}
+        <p>شماره ستون (X): {{ tile_result.tile_x }}</p>
+        <p>شماره سطر (Y): {{ tile_result.tile_y }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</body>
+</html>
