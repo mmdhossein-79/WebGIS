@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>نمایش نقشه بستر با Leaflet، GeoServer و تحلیل مکانی</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script> <!-- اضافه کردن Turf.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vazir-font@32.0.0/dist/font-face.css">
+    <style>
+        body { font-family: Vazir, Arial, sans-serif; margin: 0; padding: 0; height: 100vh; overflow: hidden; }
+        #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        #toc { position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid #ccc; z-index: 1000; }
+        #edit-panel { position: absolute; bottom: 10px; left: 10px; background: white; padding: 10px; border: 1px solid #ccc; z-index: 1000; }
+        button { margin: 5px; }
+        input[type="file"] { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="toc">
+        <h3>جدول محتوا</h3>
+        <label><input type="checkbox" id="base-layer" checked> نقشه پایه</label><br>
+        <label><input type="checkbox" id="geoserver-layer" checked> لایه داده اصلی</label>
+    </div>
+    <div id="edit-panel">
+        <h3>ویرایش</h3>
+        <button onclick="startEditing()">شروع ویرایش</button>
+        <button onclick="stopEditing()">توقف ویرایش</button>
+        <button onclick="saveEdits()">ذخیره تغییرات (محلی)</button>
+        <button onclick="exportMap()">دانلود تصویر</button>
+        <br>
+        <input type="file" id="load-geojson" accept=".geojson" onchange="loadGeoJSON(event)">
+        <button onclick="document.getElementById('load-geojson').click()">بارگذاری GeoJSON</button>
+    </div>
+
+    <script>
+        // ایجاد نقشه Leaflet
+        const map = L.map('map', {
+            center: [35.5848, 53.3930], // مختصات سمنان
+            zoom: 8,
+            maxZoom: 18
+        });
+
+        // لایه پایه (OpenStreetMap)
+        const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        // لایه WMS از GeoServer
+        const geoserverLayer = L.tileLayer.wms('http://localhost:8080/geoserver/wms', {
+            layers: 'activity11:activity11_layer',
+            format: 'image/png',
+            transparent: true,
+            attribution: 'GeoServer'
+        }).addTo(map);
+
+        // لایه محلی برای ویرایش
+        const localLayer = L.geoJSON(null, {
+            style: {
+                color: 'red',
+                weight: 2,
+                fillOpacity: 0.2
+            },
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 5,
+                    fillColor: 'red',
+                    color: 'red',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        // لایه برای رسم و ویرایش
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        // کنترل TOC
+        document.getElementById('base-layer').addEventListener('change', function() {
+            baseLayer.setOpacity(this.checked ? 1 : 0);
+            console.log('نقشه پایه تغییر کرد:', this.checked);
+        });
+        document.getElementById('geoserver-layer').addEventListener('change', function() {
+            geoserverLayer.setOpacity(this.checked ? 1 : 0);
+            console.log('لایه GeoServer تغییر کرد:', this.checked);
+        });
+
+        // متغیرهای ویرایش
+        let drawControl;
+
+        function startEditing() {
+            console.log('دکمه شروع ویرایش کلیک شد');
+            try {
+                // حذف کنترل قبلی
+                if (drawControl) {
+                    map.removeControl(drawControl);
+                    console.log('کنترل قبلی حذف شد');
+                }
+
+                // اضافه کردن کنترل رسم
+                drawControl = new L.Control.Draw({
+                    edit: {
+                        featureGroup: drawnItems
+                    },
+                    draw: {
+                        polygon: true,
+                        polyline: true,
+                        rectangle: true,
+                        circle: true,
+                        marker: true,
+                        circlemarker: false
+                    }
+                });
+                map.addControl(drawControl);
+                console.log('کنترل رسم اضافه شد');
+
+                // رویداد رسم
+                map.on(L.Draw.Event.CREATED, function (e) {
+                    const layer = e.layer;
+                    drawnItems.addLayer(layer);
+                    console.log('عارضه جدید رسم شد');
+                });
+
+                alert('ویرایش شروع شد. از ابزارهای بالا برای رسم استفاده کنید.');
+            } catch (error) {
+                console.error('خطا در شروع ویرایش:', error);
+                alert('خطا در شروع ویرایش: ' + error.message);
+            }
+        }
+
+        function stopEditing() {
+            console.log('دکمه توقف ویرایش کلیک شد');
+            try {
+                if (drawControl) {
+                    map.removeControl(drawControl);
+                    drawControl = null;
+                    console.log('کنترل رسم حذف شد');
+                }
+                alert('ویرایش متوقف شد.');
+            } catch (error) {
+                console.error('خطا در توقف ویرایش:', error);
+                alert('خطا در توقف ویرایش: ' + error.message);
+            }
+        }
+
+        function saveEdits() {
+            console.log('دکمه ذخیره تغییرات کلیک شد');
+            try {
+                const features = drawnItems.toGeoJSON().features;
+                console.log('تعداد عوارض:', features.length);
+                if (features.length === 0) {
+                    alert('هیچ عارضه‌ای برای ذخیره وجود ندارد.');
+                    return;
+                }
+
+                // تحلیل مکانی با Turf.js - محاسبه طول کل خطوط
+                let totalLength = 0;
+                features.forEach(feature => {
+                    if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                        totalLength += turf.length(feature, { units: 'meters' });
+                    }
+                });
+
+                const geojsonStr = JSON.stringify(drawnItems.toGeoJSON(), null, 2);
+                console.log('تغییرات (GeoJSON):', geojsonStr);
+                alert(`تغییرات به‌صورت محلی ذخیره شد. تعداد عوارض: ${features.length}\nطول کل خطوط: ${totalLength.toFixed(2)} متر`);
+
+                // دانلود GeoJSON
+                const blob = new Blob([geojsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'bedrest_edits.geojson';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('خطا در ذخیره تغییرات:', error);
+                alert('خطا در ذخیره: ' + error.message);
+            }
+        }
+
+        function loadGeoJSON(event) {
+            console.log('دکمه بارگذاری GeoJSON کلیک شد');
+            try {
+                const file = event.target.files[0];
+                if (!file) {
+                    console.log('هیچ فایلی انتخاب نشده');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const geojsonStr = e.target.result;
+                    const geojson = JSON.parse(geojsonStr);
+                    drawnItems.clearLayers();
+                    L.geoJSON(geojson, {
+                        style: { color: 'red', weight: 2, fillOpacity: 0.2 },
+                        pointToLayer: function (feature, latlng) {
+                            return L.circleMarker(latlng, {
+                                radius: 5,
+                                fillColor: 'red',
+                                color: 'red',
+                                weight: 1,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            });
+                        }
+                    }).addTo(drawnItems);
+                    alert(`تعداد ${geojson.features.length} عارضه بارگذاری شد.`);
+                    console.log('عوارض بارگذاری شد:', geojson.features.length);
+                };
+                reader.readAsText(file);
+            } catch (error) {
+                console.error('خطا در بارگذاری GeoJSON:', error);
+                alert('خطا در بارگذاری: ' + error.message);
+            }
+        }
+
+        function exportMap() {
+            console.log('دکمه دانلود تصویر کلیک شد');
+            try {
+                html2canvas(document.getElementById('map')).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'bedrest_map.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    console.log('تصویر دانلود شد');
+                });
+            } catch (error) {
+                console.error('خطا در دانلود تصویر:', error);
+                alert('خطا در دانلود تصویر: ' + error.message);
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</body>
+</html>
